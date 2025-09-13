@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+psycopg2-binary
+redis
+aiokafka
+prometheus-fastapi-instrumentator
+python-json-logger

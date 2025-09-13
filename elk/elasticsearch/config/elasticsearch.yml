@@ -1,0 +1,14 @@
+# cluster.name: 定义集群的名称，同一个集群中的所有节点名称必须一致。
+cluster.name: "my-fastapi-cluster"
+
+# node.name: 定义该节点的名称，在一个集群中，每个节点的名称必须是唯一的。
+node.name: es-node-1
+
+# network.host: 设置节点绑定的IP地址。 0.0.0.0 表示绑定到所有网络接口，
+# 这使得 Elasticsearch 可以从 Docker 容器外部（以及其他容器）访问。
+network.host: 0.0.0.0
+
+# discovery.type: 设置节点发现类型。对于本地开发或单节点实例，
+# "single-node" 是最佳选择。它告诉 Elasticsearch 这是一个单节点集群，
+# 无需去发现其他节点，从而可以跳过一些生产环境的启动检查，使启动更快更容易。
+discovery.type: single-node
