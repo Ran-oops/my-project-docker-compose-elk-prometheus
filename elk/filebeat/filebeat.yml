@@ -5,3 +5,8 @@ filebeat.inputs:
 
 output.logstash:
   hosts: ["logstash:5044"]
+
+# --- 添加以下内容以暴露监控指标 ---
+http.enabled: true
+http.host: 0.0.0.0
+http.port: 5066

@@ -54,13 +54,110 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  # --- 新增 NGINX 服务 ---
+  nginx:
+    image: nginx:1.25
+    container_name: nginx
+    ports:
+      - "80:80"       # 外部访问 FastAPI 的端口
+      - "8081:8081"   # Nginx 指标端口
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - fastapi_app
+
+  # --- 新增 NODE EXPORTER 服务 ---
+  node_exporter:
+    image: prom/node-exporter:v1.3.1
+    container_name: node_exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    restart: always
+
+  # --- 新增 KAFKA EXPORTER 服务 ---
+  kafka_exporter:
+    image: danielqsj/kafka-exporter:v1.4.2
+    container_name: kafka_exporter
+    command: --kafka.server=kafka:9092
+    ports:
+      - "9308:9308"
+    depends_on:
+      - kafka
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: cadvisor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    depends_on:
+      - redis
+      - postgres
+
+  postgres_exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter
+    container_name: postgres_exporter
+    environment:
+      # 使用 .env 文件中的变量来构建数据库连接字符串
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    ports:
+      - "9187:9187"
+    depends_on:
+      - postgres
+
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.44.0
+    container_name: redis_exporter
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
 
   prometheus:
     image: prom/prometheus
+    container_name: prometheus
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml # 挂载告警规则文件
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-lifecycle'
     ports:
       - "9090:9090"
+    depends_on:
+      - fastapi_app
+      - cadvisor
+      - postgres_exporter
+      - redis_exporter
+      - node_exporter
+      - kafka_exporter
+      - nginx
+
+  # --- 新增 ALERTMANAGER 服务 ---
+  alertmanager:
+    image: prom/alertmanager:v0.23.0
+    container_name: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/config/alertmanager.yml
+    command:
+      - '--config.file=/config/alertmanager.yml'
+    restart: always
 
   grafana:
     image: grafana/grafana
@@ -91,6 +188,18 @@ services:
     image: docker.elastic.co/kibana/kibana:8.5.1
     ports:
       - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+
+  # --- 新增 ELASTICSEARCH EXPORTER 服务 ---
+  elasticsearch_exporter:
+    image: bitnami/elasticsearch-exporter:1.5.0
+    container_name: elasticsearch_exporter
+    command: --es.uri=http://elasticsearch:9200
+    ports:
+      - "9114:9114"
     depends_on:
       - elasticsearch
 
@@ -101,8 +210,11 @@ services:
       - ./elk/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock
+    ports: # 添加这个 ports 映射
+      - "5066:5066"
     depends_on:
       - logstash
+
 
 volumes:
   postgres_data:

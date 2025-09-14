@@ -1,7 +1,53 @@
+# prometheus/prometheus.yml (更新后的完整文件)
+
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
+
+# 告警规则文件路径
+rule_files:
+  - "alert.rules.yml"
+
+# Alertmanager 配置
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      - alertmanager:9093
 
 scrape_configs:
   - job_name: 'fastapi'
     static_configs:
       - targets: ['fastapi_app:8000']
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  - job_name: 'postgres_exporter'
+    static_configs:
+      - targets: ['postgres_exporter:9187']
+
+  - job_name: 'redis_exporter'
+    static_configs:
+      - targets: ['redis_exporter:9121']
+
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['node_exporter:9100']
+
+  - job_name: 'kafka_exporter'
+    static_configs:
+      - targets: ['kafka_exporter:9308']
+
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:8081']
+
+  - job_name: 'elasticsearch_exporter'
+    static_configs:
+      - targets: [ 'elasticsearch_exporter:9114' ]
+
+  - job_name: 'filebeat'
+    static_configs:
+      - targets: [ 'filebeat:5066' ]

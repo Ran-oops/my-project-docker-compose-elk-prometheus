@@ -12,3 +12,4 @@ network.host: 0.0.0.0
 # "single-node" 是最佳选择。它告诉 Elasticsearch 这是一个单节点集群，
 # 无需去发现其他节点，从而可以跳过一些生产环境的启动检查，使启动更快更容易。
 discovery.type: single-node
+xpack.security.enabled: false
