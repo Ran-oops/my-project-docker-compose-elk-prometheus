@@ -1,3 +1,5 @@
+# elk/filebeat/filebeat.yml
+
 filebeat.inputs:
 - type: container
   paths:
@@ -6,7 +8,11 @@ filebeat.inputs:
 output.logstash:
   hosts: ["logstash:5044"]
 
-# --- 添加以下内容以暴露监控指标 ---
-http.enabled: true
-http.host: 0.0.0.0
-http.port: 5066
+# --- 确保 http 配置块与下面完全一致 ---
+http:
+  enabled: true
+  host: 0.0.0.0
+  port: 5066
+  prometheus:
+    enabled: true
+    path: /metrics

@@ -40,14 +40,18 @@ scrape_configs:
     static_configs:
       - targets: ['kafka_exporter:9308']
 
-  - job_name: 'nginx'
+#  - job_name: 'nginx'
+#    static_configs:
+#      - targets: ['nginx:8081']
+  - job_name: 'nginx_exporter'
     static_configs:
-      - targets: ['nginx:8081']
+      - targets: [ 'nginx_exporter:9113' ]
 
   - job_name: 'elasticsearch_exporter'
     static_configs:
       - targets: [ 'elasticsearch_exporter:9114' ]
 
   - job_name: 'filebeat'
+#    metrics_path: /
     static_configs:
       - targets: [ 'filebeat:5066' ]
