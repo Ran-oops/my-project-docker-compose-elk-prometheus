@@ -234,12 +234,13 @@ services:
   logstash:
     image: docker.elastic.co/logstash/logstash:8.5.1
     ports:
-      - "5044:5044"
+      # - "5044:5044" # 这个可以移除了
+      - "50000:50000" # 暴露新的 TCP 端口
     volumes:
       - ./elk/logstash/pipeline:/usr/share/logstash/pipeline
     depends_on:
       - elasticsearch
-    networks: # <--- 添加这个
+    networks:
       - monitor-net
 
   kibana:
@@ -265,20 +266,7 @@ services:
     networks: # <--- 添加这个
       - monitor-net
 
-  filebeat:
-    image: docker.elastic.co/beats/filebeat:8.5.1
-    user: root
-    volumes:
-      - ./elk/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports: # 添加这个 ports 映射
-      - "5066:5066"
-    command: filebeat -e --strict.perms=false
-    depends_on:
-      - logstash
-    networks: # <--- 添加这个
-      - monitor-net
+
 
 
 volumes:

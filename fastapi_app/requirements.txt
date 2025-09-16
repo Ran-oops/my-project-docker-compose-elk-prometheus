@@ -5,3 +5,4 @@ redis
 aiokafka
 prometheus-fastapi-instrumentator
 python-json-logger
+python-logstash-async
