@@ -12,13 +12,15 @@ services:
       - REDIS_HOST=redis
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - POSTGRES_HOST=postgres
+    volumes:
+      - ./fastapi_app/app:/app/app
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - postgres
       - redis
       - kafka
-    volumes:
-      - ./fastapi_app/app:/app/app
-    networks: # <--- 添加这个
+    networks:
       - monitor-net
 
   postgres:
@@ -31,14 +33,19 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks: # <--- 添加这个
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
       - monitor-net
 
   redis:
     image: redis:7.2-alpine
     ports:
       - "6379:6379"
-    networks: # <--- 添加这个
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
       - monitor-net
 
   zookeeper:
@@ -46,34 +53,37 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    networks: # <--- 添加这个
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
       - monitor-net
 
   kafka:
-      # 换回官方镜像，不再需要 build
-      image: confluentinc/cp-kafka:7.3.0
-      container_name: kafka
-      depends_on:
-        - zookeeper
-      ports:
-        - "9092:9092"
-      environment:
-        KAFKA_BROKER_ID: 1
-        KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
-        KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
-        KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
-        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      networks:
-        - monitor-net
-      # --- 使用内置工具进行健康检查 ---
-      healthcheck:
-        # 这个命令会尝试列出 topic，如果 Kafka 没准备好，命令会失败
-        test: ["CMD-SHELL", "kafka-topics --bootstrap-server kafka:29092 --list"]
-        interval: 10s
-        timeout: 5s
-        retries: 5
-        start_period: 20s
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    depends_on:
+      - zookeeper
+    networks:
+      - monitor-net
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server kafka:29092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   kafka_exporter:
     image: danielqsj/kafka-exporter:v1.4.2
@@ -81,26 +91,28 @@ services:
     command: --kafka.server=kafka:29092
     ports:
       - "9308:9308"
-    # --- 修改 depends_on 语法 ---
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       kafka:
         condition: service_healthy
     networks:
       - monitor-net
 
-
-  # --- 新增 NGINX 服务 ---
   nginx:
     image: nginx:1.25
     container_name: nginx
     ports:
-      - "80:80"       # 外部访问 FastAPI 的端口
-      - "8081:8081"   # Nginx 指标端口
+      - "80:80"
+      - "8081:8081"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - fastapi_app
-    networks: # <--- 添加这个
+    networks:
       - monitor-net
 
   nginx_exporter:
@@ -109,12 +121,14 @@ services:
     command: -nginx.scrape-uri http://nginx:8081/metrics
     ports:
       - "9113:9113"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - nginx
     networks:
       - monitor-net
 
-  # --- 新增 NODE EXPORTER 服务 ---
   node_exporter:
     image: prom/node-exporter:v1.3.1
     container_name: node_exporter
@@ -122,6 +136,8 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
@@ -129,10 +145,8 @@ services:
     ports:
       - "9100:9100"
     restart: always
-    networks: # <--- 添加这个
+    networks:
       - monitor-net
-
-
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.47.2
@@ -144,23 +158,27 @@ services:
       - /var/run:/var/run:rw
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - redis
       - postgres
-    networks: # <--- 添加这个
+    networks:
       - monitor-net
 
   postgres_exporter:
     image: quay.io/prometheuscommunity/postgres-exporter
     container_name: postgres_exporter
     environment:
-      # 使用 .env 文件中的变量来构建数据库连接字符串
       - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
     ports:
       - "9187:9187"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - postgres
-    networks: # <--- 添加这个
+    networks:
       - monitor-net
 
   redis_exporter:
@@ -170,9 +188,12 @@ services:
       - REDIS_ADDR=redis://redis:6379
     ports:
       - "9121:9121"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - redis
-    networks: # <--- 添加这个
+    networks:
       - monitor-net
 
   prometheus:
@@ -180,7 +201,9 @@ services:
     container_name: prometheus
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml # 挂载告警规则文件
+      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--web.enable-lifecycle'
@@ -193,11 +216,10 @@ services:
       - redis_exporter
       - node_exporter
       - kafka_exporter
-      - nginx
-    networks: # <--- 添加这个
+      - nginx_exporter
+    networks:
       - monitor-net
 
-  # --- 新增 ALERTMANAGER 服务 ---
   alertmanager:
     image: prom/alertmanager:v0.23.0
     container_name: alertmanager
@@ -205,10 +227,12 @@ services:
       - "9093:9093"
     volumes:
       - ./alertmanager/alertmanager.yml:/config/alertmanager.yml
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     command:
       - '--config.file=/config/alertmanager.yml'
     restart: always
-    networks: # <--- 添加这个
+    networks:
       - monitor-net
 
   grafana:
@@ -217,7 +241,9 @@ services:
       - "3000:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
-    networks: # <--- 添加这个
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
       - monitor-net
 
   elasticsearch:
@@ -226,18 +252,23 @@ services:
       - "9200:9200"
     volumes:
       - ./elk/elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
-      # 数据持久化
       - es_data:/usr/share/elasticsearch/data
-    networks: # <--- 添加这个
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
       - monitor-net
 
   logstash:
     image: docker.elastic.co/logstash/logstash:8.5.1
     ports:
-      # - "50000:50000" # 注释或删除旧端口
-      - "8099:8099" # 暴露新的 HTTP 端口
+      - "8099:8099"
+    # --- 添加 TZ 环境变量 ---
+    environment:
+      - TZ=Asia/Shanghai
     volumes:
       - ./elk/logstash/pipeline:/usr/share/logstash/pipeline
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - elasticsearch
     networks:
@@ -249,30 +280,32 @@ services:
       - "5601:5601"
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - elasticsearch
-    networks: # <--- 添加这个
+    networks:
       - monitor-net
 
-  # --- 新增 ELASTICSEARCH EXPORTER 服务 ---
   elasticsearch_exporter:
     image: bitnami/elasticsearch-exporter:1.5.0
     container_name: elasticsearch_exporter
     command: --es.uri=http://elasticsearch:9200
     ports:
       - "9114:9114"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     depends_on:
       - elasticsearch
-    networks: # <--- 添加这个
+    networks:
       - monitor-net
-
-
-
 
 volumes:
   postgres_data:
   es_data:
 
-networks:  # <--- 添加这个 networks 块
+networks:
   monitor-net:
     driver: bridge

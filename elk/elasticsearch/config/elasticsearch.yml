@@ -13,3 +13,6 @@ network.host: 0.0.0.0
 # 无需去发现其他节点，从而可以跳过一些生产环境的启动检查，使启动更快更容易。
 discovery.type: single-node
 xpack.security.enabled: false
+# --- 添加下面这两行 ---
+xpack.security.enrollment.enabled: false
+xpack.security.http.ssl.enabled: false
