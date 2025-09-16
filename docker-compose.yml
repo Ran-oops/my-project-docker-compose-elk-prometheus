@@ -234,8 +234,8 @@ services:
   logstash:
     image: docker.elastic.co/logstash/logstash:8.5.1
     ports:
-      # - "5044:5044" # 这个可以移除了
-      - "50000:50000" # 暴露新的 TCP 端口
+      # - "50000:50000" # 注释或删除旧端口
+      - "8099:8099" # 暴露新的 HTTP 端口
     volumes:
       - ./elk/logstash/pipeline:/usr/share/logstash/pipeline
     depends_on:

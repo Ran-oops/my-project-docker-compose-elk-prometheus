@@ -1,57 +1,46 @@
-# fastapi_app/app/logging_config.py
 import os
 
 LOGSTASH_HOST = os.getenv("LOGSTASH_HOST", "logstash")
-LOGSTASH_PORT = int(os.getenv("LOGSTASH_PORT", 50000)) # Logstash TCP input 端口
+# Logstash HTTP input 默认端口是 8080，但为了避免冲突，我们用一个自定义端口
+LOGSTASH_PORT = int(os.getenv("LOGSTASH_PORT", 8099))
 
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        # 这个 formatter 用于在控制台（stdout）输出，方便本地调试
         "default": {
             "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         },
-        # 这个 formatter 用于发送到 Logstash，可以添加额外字段
-        "logstash": {
+        "logstash": { # 这个 formatter 保持不变
             "()": "logstash_async.formatter.LogstashFormatter",
             "message_type": "python-logstash",
-            "extra_prefix": "dev",
-            "extra": {
-                "application": "my-fastapi-app"
-            }
+            "extra": {"application": "my-fastapi-app"}
         },
     },
     "handlers": {
-        # 控制台输出 handler
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "default",
         },
-        # Logstash TCP handler
+        # --- 修改 logstash handler ---
         "logstash": {
+            # 更换为 HTTP Handler
             "class": "logstash_async.handler.AsynchronousLogstashHandler",
             "formatter": "logstash",
             "host": LOGSTASH_HOST,
             "port": LOGSTASH_PORT,
-            "database_path": "logstash_events.db", # 离线缓冲数据库路径
+            "database_path": "logstash_events.db",
+            # --- 添加这两行来启用 SSL 和 HTTP ---
+            "ssl_enable": False, # 在 Docker 内部网络，我们不需要 SSL
+            "use_logging_http_handler": True,
         },
     },
-    # 配置根 logger，让它同时使用 console 和 logstash
     "root": {
         "handlers": ["console", "logstash"],
         "level": "INFO",
     },
-    "loggers": {
-        "uvicorn.error": {
-            "level": "INFO",
-            "handlers": ["console", "logstash"],
-            "propagate": False,
-        },
-        "uvicorn.access": {
-            "level": "INFO",
-            "handlers": ["console", "logstash"],
-            "propagate": False,
-        },
+    "loggers": { # loggers 部分保持不变
+        "uvicorn.error": {"handlers": ["console", "logstash"], "level": "INFO", "propagate": False},
+        "uvicorn.access": {"handlers": ["console", "logstash"], "level": "INFO", "propagate": False},
     },
 }
