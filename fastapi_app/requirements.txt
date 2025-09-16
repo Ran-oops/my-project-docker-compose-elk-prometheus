@@ -5,5 +5,5 @@ redis
 aiokafka
 prometheus-fastapi-instrumentator
 python-json-logger
-python-logstash-async
 asgi-correlation-id
+requests
