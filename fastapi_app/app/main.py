@@ -7,8 +7,8 @@ import psycopg2
 
 # --- 导入所有需要的模块 ---
 from asgi_correlation_id import CorrelationIdMiddleware
-from .middlewares import log_and_monitor_middleware
-from prometheus_fastapi_instrumentator import Instrumentator
+from .middlewares import LogAndMonitorMiddleware # 导入我们自己的中间件类
+from prometheus_fastapi_instrumentator import Instrumentator # 导入 Instrumentator
 
 from .dependencies import get_redis, get_db
 from .kafka_producer import send_message
@@ -20,37 +20,33 @@ dictConfig(LOGGING)
 # 获取一个 logger 实例
 logger = logging.getLogger(__name__)
 
+# --------------------------------------------------------------------
+# --- 核心改动：在 Lifespan 外部完成所有定义和注册 ---
+# --------------------------------------------------------------------
 
-# --- 这是核心改动：使用 lifespan 上下文管理器 ---
+# 1. 定义 Lifespan 函数
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 应用启动时执行的代码
-
-    # 1. 创建并应用 Instrumentator
-    instrumentator = Instrumentator().instrument(app)
-
-    # 2. 暴露 /metrics 端点
-    instrumentator.expose(app)
-
-    logger.info("FastAPI application startup complete. Metrics exposed.")
-
+    # 应用启动时执行的代码现在可以保持简洁
+    logger.info("FastAPI application startup complete.")
     yield
-
-    # 应用关闭时执行的代码 (如果需要)
+    # 应用关闭时执行的代码
     logger.info("FastAPI application shutting down.")
 
-
-# 将 lifespan 函数传递给 FastAPI
+# 2. 创建 FastAPI 应用实例，并传入 lifespan
 app = FastAPI(lifespan=lifespan)
 
-# --- 注册中间件 (顺序很重要) ---
-# a. 添加 CorrelationIdMiddleware，它必须在最前面
+# 3. 注册我们自己的中间件 (顺序很重要)
 app.add_middleware(CorrelationIdMiddleware)
-# b. 添加我们自己编写的日志和自定义指标中间件
-app.add_middleware(log_and_monitor_middleware)
+app.add_middleware(LogAndMonitorMiddleware)
 
+# 4. 应用并暴露自动化的 Instrumentator
+#    这个操作也必须在 lifespan 开始之前完成
+Instrumentator().instrument(app).expose(app)
 
+# --------------------------------------------------------------------
 # --- 端点代码保持不变 ---
+# --------------------------------------------------------------------
 
 @app.get("/")
 def read_root():
@@ -59,7 +55,7 @@ def read_root():
 
 
 @app.get("/health")
-def health_check(redis_client: redis.Redis = Depends(get_redis), db_conn=Depends(get_db)):
+def health_check(redis_client: redis.Redis = Depends(get_redis), db_conn = Depends(get_db)):
     try:
         redis_client.ping()
         logger.debug("Redis connection is healthy.")
